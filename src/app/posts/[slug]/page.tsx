@@ -3,36 +3,40 @@ import { PortableText } from '@portabletext/react';
 import type { PortableTextBlock } from '@portabletext/types';
 import Link from 'next/link';
 
+// Define the shape of a Post
 interface Post {
   _id: string;
   title: string;
-  body: PortableTextBlock[]; // Use a specific type for Portable Text
+  body: PortableTextBlock[];
+}
+
+// Define the shape of the props for our Page component
+interface PageProps {
+  params: {
+    slug: string;
+  };
 }
 
 // This tells Next.js which pages to statically generate at build time.
 export async function generateStaticParams() {
-  const query = `*[_type == "post"]{
-    "slug": slug.current
-  }`;
-  const slugs = await client.fetch(query);
-  return slugs.map((s: { slug: string }) => ({
-    slug: s.slug,
-  }));
+  const query = `*[_type == "post"]{"slug": slug.current}`;
+  const slugs: { slug: string }[] = await client.fetch(query);
+  return slugs.map((s) => ({ slug: s.slug }));
 }
 
 // Async function to fetch a single post data from Sanity
-async function getPost(slug: string) {
+async function getPost(slug: string): Promise<Post> {
   const query = `*[_type == "post" && slug.current == $slug][0] {
     _id,
     title,
     body
   }`;
-  const post: Post = await client.fetch(query, { slug });
+  const post = await client.fetch(query, { slug });
   return post;
 }
 
 // The main page component for a single post
-export default async function PostPage({ params }: { params: { slug: string } }) {
+export default async function PostPage({ params }: PageProps) {
   const post = await getPost(params.slug);
 
   if (!post) {
@@ -40,7 +44,7 @@ export default async function PostPage({ params }: { params: { slug: string } })
   }
 
   return (
-    <div className="bg-ray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4">
