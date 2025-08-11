@@ -1,18 +1,17 @@
-// generate-ai-draft.js
-// このスクリプトはAIニュースの下書きを生成し、Sanityに保存します。
-
 const { createClient } = require('@sanity/client');
 const { micromark } = require('micromark');
 const { JSDOM } = require('jsdom');
 const { htmlToBlocks } = require('@portabletext/block-tools');
 const { Schema } = require('@sanity/schema');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const xml2js = require('xml2js');
+const { default: fetch } = require('node-fetch');
 
 // --- APIクライアント設定 ---
 // 重要: 以下の環境変数を設定してください。
 // 1. Sanity APIトークン:
 //    export SANITY_API_TOKEN='YOUR_SANITY_API_TOKEN_HERE'
-// 2. Gemini APIキー:
+// 2. Gemini APIキー (自動モードでのみ必要):
 //    export GEMINI_API_KEY='YOUR_GEMINI_API_KEY_HERE'
 
 // Sanity クライアント
@@ -25,7 +24,10 @@ const client = createClient({
 });
 
 // Gemini クライアント
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+
+// RSSフィードのURL
+const RSS_FEED_URL = 'https://news.yahoo.co.jp/rss/topics/it.xml';
 
 // --- Sanity スキーマ定義 (簡易版) ---
 const defaultSchema = Schema.compile({
@@ -36,7 +38,12 @@ const defaultSchema = Schema.compile({
       name: 'post',
       fields: [
         { title: 'Title', type: 'string', name: 'title' },
-        { title: 'Body', name: 'body', type: 'array', of: [{ type: 'block' }] },
+        {
+          title: 'Body',
+          name: 'body',
+          type: 'array',
+          of: [{ type: 'block' }],
+        },
         { title: 'Slug', name: 'slug', type: 'slug', options: { source: 'title', maxLength: 96 } },
         { title: 'Published at', name: 'publishedAt', type: 'datetime' },
       ],
@@ -47,18 +54,77 @@ const defaultSchema = Schema.compile({
 const blockContentType = defaultSchema.get('post').fields.find((field) => field.name === 'body').type;
 
 /**
- * Gemini APIを使用して、指定されたトピックに関するブログ記事を生成します。
- * @param {string} topic - 記事のトピック。
- * @returns {Promise<{title: string, content: string}>} 生成された記事のタイトルとコンテンツ。
+ * 指定されたタイトルとMarkdownコンテンツからSanityの下書きを作成します。
+ * @param {string} title - 記事のタイトル。
+ * @param {string} markdownContent - 記事の本文 (Markdown形式)。
  */
-async function generateArticle(topic) {
-  console.log(`Generating article for topic: ${topic}...`);
+async function saveDraftToSanity(title, markdownContent) {
+  if (!process.env.SANITY_API_TOKEN) {
+    throw new Error('Sanity APIトークンが環境変数に設定されていません。');
+  }
+
+  console.log('MarkdownをPortable Textに変換しています...');
+  const html = String(micromark(markdownContent));
+  const dom = new JSDOM(html);
+  const blocks = await htmlToBlocks(dom.window.document.body.innerHTML, blockContentType, {
+    parseHtml: (htmlString) => new JSDOM(htmlString).window.document,
+  });
+  console.log('変換に成功しました。');
+
+  const draftSlug = title
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase() + `-${Date.now()}`;
+
+  const doc = {
+    _type: 'post',
+    _id: 'drafts.' + draftSlug,
+    title: title,
+    slug: { _type: 'slug', current: draftSlug },
+    body: blocks,
+    publishedAt: new Date().toISOString(),
+  };
+
+  console.log('Sanityに下書きを保存しています...');
+  const result = await client.create(doc);
+  console.log('Sanityに下書きが作成されました。 ID:', result._id);
+  console.log('確認用URL:', `https://kozukai-tosan-blog.sanity.studio/desk/post;${result._id}`);
+}
+
+/**
+ * RSSフィードを取得し、パースします。
+ */
+async function fetchAndParseRss() {
+  // ... (この関数の内容は変更なし)
+  console.log('Fetching and parsing RSS feed...');
+  try {
+    const response = await fetch(RSS_FEED_URL);
+    const rssContent = await response.text();
+    const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
+    const result = await parser.parseStringPromise(rssContent);
+    return result.rss.channel.item;
+  } catch (error) {
+    console.error('Error fetching or parsing RSS feed:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Gemini APIを使用して、指定されたトピックに関するブログ記事を生成します。
+ */
+async function generateArticle(topic, link) {
+    if (!genAI) {
+        throw new Error('Gemini APIキーが設定されていません。自動生成はできません。');
+    }
+  // ... (この関数の内容は変更なし)
+  console.log(`Generating article for topic: ${topic} from ${link}...`);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const prompt = `
 以下のトピックに関するブログ記事を生成してください。
 
 トピック: ${topic}
+元記事のリンク: ${link}
 
 記事の構成は以下のようにしてください。
 - 読者の興味を引くタイトル
@@ -66,6 +132,9 @@ async function generateArticle(topic) {
   - 背景説明
   - 最新情報
   - 今後の見通し
+  - 関連リンク（ソースURL）
+
+固有名詞や引用部分はオリジナルの文章にリライト（SEOペナルティ対策）してください。
 
 出力は以下のJSON形式でお願いします。
 {
@@ -77,66 +146,71 @@ async function generateArticle(topic) {
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = await response.text();    console.log('Gemini API Response:', text);    if (!text) {      throw new Error('Gemini API returned an empty response.');    }    let jsonString;    try {      jsonString = text.match(/```json\n([\s\S]*?)```/)[1];    } catch (e) {      throw new Error('Could not extract JSON from Gemini API response. Response was: ' + text);    }    const article = JSON.parse(jsonString);
-    console.log('Article generated successfully.');
-    return article;
+    const text = await response.text();
+    let jsonString;
+    try {
+      jsonString = text.match(/```json\n([\s\S]*?)```/)[1];
+    } catch (e) {
+      throw new Error('Could not extract JSON from Gemini API response. Response was: ' + text);
+    }
+    return JSON.parse(jsonString);
   } catch (error) {
     console.error('Error generating article with Gemini:', error);
     throw new Error('Failed to generate article.');
   }
 }
 
+/**
+ * RSSから記事を自動生成し、Sanityに保存します。
+ */
+async function runAutomatedDraftCreation() {
+  console.log('自動モードで実行します...');
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('Gemini APIキーが環境変数に設定されていません。');
+  }
+
+  const articles = await fetchAndParseRss();
+  if (articles.length === 0) {
+    console.log('RSSフィードに記事が見つかりませんでした。');
+    return;
+  }
+
+  const latestArticle = articles[0];
+  console.log(`最新の記事を選択しました: ${latestArticle.title}`);
+
+  const { title, content } = await generateArticle(latestArticle.title, latestArticle.link);
+  await saveDraftToSanity(title, content);
+}
 
 /**
- * AIが生成した記事をSanityに下書きとして保存します。
+ * メイン処理
  */
-async function generateAndSaveAIDraft() {
+async function main() {
   try {
-    if (!process.env.SANITY_API_TOKEN || !process.env.GEMINI_API_KEY) {
-      throw new Error('API keys for Sanity and Gemini must be set as environment variables.');
+    const args = process.argv.slice(2);
+    const titleIndex = args.indexOf('--title');
+    const contentIndex = args.indexOf('--content');
+
+    let title = null;
+    let content = null;
+
+    if (titleIndex !== -1 && args[titleIndex + 1]) {
+      title = args[titleIndex + 1];
+    }
+    if (contentIndex !== -1 && args[contentIndex + 1]) {
+      content = args[contentIndex + 1];
     }
 
-    // 1. 記事を生成 (将来的にはトレンド検知の結果を渡す)
-    const topic = 'AIの最新トレンド'; // 仮のトピック
-    const { title: newsTitle, content: newsContent } = await generateArticle(topic);
-
-    // 2. MarkdownをPortable Textに変換
-    console.log('Converting Markdown to Portable Text...');
-    const html = String(micromark(newsContent));
-    console.log('micromark output:', html);
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-    const blocks = await htmlToBlocks(document.body.innerHTML, blockContentType, {
-      parseHtml: (htmlString) => new JSDOM(htmlString).window.document,
-    });
-    console.log('Conversion successful.');
-
-    // 3. Sanityに保存するドキュメントを作成
-    const draftSlug = topic
-      .replace(/[^a-zA-Z0-9\s-]/g, '') // 英数字、スペース、ハイフン以外を削除
-      .replace(/\s+/g, '-') // スペースをハイフンに置換
-      .toLowerCase() + `-${Date.now()}`;
-    const doc = {
-      _type: 'post',
-      _id: 'drafts.' + draftSlug, // 下書きとして保存
-      title: newsTitle,
-      slug: {
-        _type: 'slug',
-        current: draftSlug,
-      },
-      body: blocks,
-      publishedAt: new Date().toISOString(),
-    };
-
-    // 4. Sanityにドキュメントを作成
-    console.log('Saving draft to Sanity...');
-    const result = await client.create(doc);
-    console.log('AI news draft created in Sanity with ID:', result._id);
-    console.log('View it at:', `https://kozukai-tosan-blog.sanity.studio/desk/post;${result._id}`);
-
+    if (title && content) {
+      console.log('手動モードで実行します。');
+      await saveDraftToSanity(title, content);
+    } else {
+      await runAutomatedDraftCreation();
+    }
   } catch (error) {
-    console.error('Error in generateAndSaveAIDraft:', error.message);
+    console.error('エラーが発生しました:', error.message);
   }
 }
 
-generateAndSaveAIDraft();
+main();
+

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { client } from '@/sanity/client';
 
 // Interface for our Sanity Post data
