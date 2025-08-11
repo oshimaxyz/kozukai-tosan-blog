@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@portabletext/block-tools": "^2.0.8",
+    "@portabletext/react": "^3.2.1",
     "@sanity/client": "^7.8.2",
     "@sanity/schema": "^4.3.0",
     "jsdom": "^26.1.0",
