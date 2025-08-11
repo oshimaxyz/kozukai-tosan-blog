@@ -1,29 +1,26 @@
-import Image from "next/image";
+import { client } from '@/sanity/client';
 
-// Interface for our WordPress Post data
+// Interface for our Sanity Post data
 interface Post {
-  id: number;
-  title: {
-    rendered: string;
-  };
-  link: string;
-  excerpt: {
-    rendered: string;
-  }
+  _id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
 }
 
-// Async function to fetch posts from WordPress REST API
+// Async function to fetch posts from Sanity
 async function getPosts() {
   try {
-    const res = await fetch('https://kozukai-tosan.com/wp-json/wp/v2/posts?_embed&per_page=6');
-    if (!res.ok) {
-      console.error("Failed to fetch posts:", res.status, res.statusText);
-      return [];
-    }
-    const posts: Post[] = await res.json();
+    const query = `*[_type == "post"] | order(publishedAt desc) {
+      _id,
+      title,
+      "slug": slug.current,
+      "excerpt": body[0].children[0].text // Assuming first block's first child text as excerpt
+    }`;
+    const posts: Post[] = await client.fetch(query);
     return posts;
   } catch (error) {
-    console.error("Error fetching posts:", error);
+    console.error("Error fetching posts from Sanity:", error);
     return [];
   }
 }
@@ -67,21 +64,17 @@ export default async function Home() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8"> {/* Adjusted for 2 columns in main content */}
               {posts.map((post) => (
                 <a 
-                  key={post.id} 
-                  href={post.link} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                  key={post._id} 
+                  href={`/posts/${post.slug}`} 
                   className="block bg-white rounded-lg shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300"
                 >
                   <div className="p-6">
                     <h4 
                       className="text-xl font-semibold text-gray-900 mb-2"
-                      dangerouslySetInnerHTML={{ __html: post.title.rendered }} 
-                    />
+                    > {post.title} </h4>
                     <div 
                       className="text-gray-600 text-sm"
-                      dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }}
-                    />
+                    > {post.excerpt} </div>
                   </div>
                 </a>
               ))}
