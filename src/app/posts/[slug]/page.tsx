@@ -36,7 +36,7 @@ async function getPost(slug: string): Promise<Post> {
 }
 
 // The main page component for a single post
-export default async function PostPage({ params }: PageProps) {
+export default async function PostPage({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
 
   if (!post) {
