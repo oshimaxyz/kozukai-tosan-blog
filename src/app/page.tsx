@@ -45,10 +45,10 @@ export default async function Home() {
       <section className="bg-blue-600 text-white">
         <div className="container mx-auto px-4 py-20 text-center">
           <h2 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4">
-            大人の”学び直し”ブログ
+            ビジネスマンのためのAIニュース
           </h2>
           <p className="text-lg md:text-xl text-blue-100">
-            学ぶ×小遣い
+            AIニュース
           </p>
         </div>
       </section>
