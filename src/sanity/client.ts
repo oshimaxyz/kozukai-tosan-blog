@@ -5,5 +5,5 @@ export const client = createClient({
   dataset: 'production', // Your dataset name
   apiVersion: '2025-08-10', // Use a recent date
   useCdn: false, // Set to false for authenticated writes
-  token: process.env.SANITY_API_TOKEN, // Your API token
+  token: process.env.NEXT_PUBLIC_SANITY_API_TOKEN, // Your API token
 });
