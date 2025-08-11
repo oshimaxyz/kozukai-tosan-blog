@@ -1,10 +1,12 @@
 import { client } from '@/sanity/client';
 import { PortableText } from '@portabletext/react';
+import type { PortableTextBlock } from '@portabletext/types';
+import Link from 'next/link';
 
 interface Post {
   _id: string;
   title: string;
-  body: any[]; // Portable Text is a complex array type
+  body: PortableTextBlock[]; // Use a specific type for Portable Text
 }
 
 // This tells Next.js which pages to statically generate at build time.
@@ -38,11 +40,11 @@ export default async function PostPage({ params }: { params: { slug: string } })
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-ray-50 min-h-screen">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4">
-          <a href="/" className="text-2xl font-bold text-gray-800">ビジネスマンのためのAIニュース</a>
+          <Link href="/" className="text-2xl font-bold text-gray-800">ビジネスマンのためのAIニュース</Link>
         </div>
       </header>
 
