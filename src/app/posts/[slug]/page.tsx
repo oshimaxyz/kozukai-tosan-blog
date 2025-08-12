@@ -59,7 +59,26 @@ export default async function PostPage({ params }: { params: { slug: string } })
             {post.title}
           </h1>
           <div className="prose prose-lg max-w-none text-gray-800">
-            <PortableText value={post.body} />
+            <PortableText
+              value={post.body}
+              components={{
+                marks: {
+                  link: ({ children, value }) => {
+                    const rel = !value.href.startsWith('/') ? 'noreferrer noopener' : undefined;
+                    return (
+                      <a
+                        href={value.href}
+                        rel={rel}
+                        target={rel ? '_blank' : undefined}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {children}
+                      </a>
+                    );
+                  },
+                },
+              }}
+            />
           </div>
         </article>
       </main>
