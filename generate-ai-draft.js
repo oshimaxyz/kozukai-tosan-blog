@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { createClient } = require('@sanity/client');
 const { micromark } = require('micromark');
 const { JSDOM } = require('jsdom');

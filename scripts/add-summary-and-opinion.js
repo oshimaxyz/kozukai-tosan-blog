@@ -1,6 +1,6 @@
+require('dotenv').config();
 const { createClient } = require('@sanity/client');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { toPlainText } = require('@sanity/block-content-to-markdown');
 const { micromark } = require('micromark');
 const { JSDOM } = require('jsdom');
 const { htmlToBlocks } = require('@portabletext/block-tools');
@@ -38,6 +38,22 @@ const defaultSchema = Schema.compile({
 });
 const blockContentType = defaultSchema.get('post').fields.find((field) => field.name === 'body').type;
 
+/**
+ * Converts Sanity Portable Text array to plain text.
+ * @param {Array} blocks - Portable Text blocks
+ * @returns {string}
+ */
+function portableTextToPlainText(blocks = []) {
+  return blocks
+    .map(block => {
+      if (block._type !== 'block' || !block.children) {
+        return '';
+      }
+      return block.children.map(child => child.text).join('');
+    })
+    .join('\n\n');
+}
+
 const TARGET_POST_ID = 'aigpt-5-openai-1754911826690'; // 対象記事のID
 
 async function addSummaryAndOpinion() {
@@ -59,7 +75,7 @@ async function addSummaryAndOpinion() {
     console.log(`Post found: ${post.title}`);
 
     // 2. Portable Textをプレーンテキストに変換
-    const plainTextContent = toPlainText(post.body);
+    const plainTextContent = portableTextToPlainText(post.body);
     console.log('Converted Portable Text to plain text for Gemini.');
 
     // 3. Geminiで要約と「持論」を生成
