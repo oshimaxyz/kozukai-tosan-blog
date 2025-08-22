@@ -162,7 +162,7 @@ async function generateArticle(topic, link) {
 }
 
 /**
- * RSSから記事を自動生成し、Sanityに保存します。
+ * RSSからAI関連の記事を検索し、自動生成してSanityに保存します。
  */
 async function runAutomatedDraftCreation() {
   console.log('自動モードで実行します...');
@@ -176,11 +176,25 @@ async function runAutomatedDraftCreation() {
     return;
   }
 
-  const latestArticle = articles[0];
-  console.log(`最新の記事を選択しました: ${latestArticle.title}`);
+  const aiKeywords = ['AI', '人工知能', '機械学習', 'ディープラーニング', 'LLM'];
+  let targetArticle = null;
 
-  const { title, content } = await generateArticle(latestArticle.title, latestArticle.link);
-  await saveDraftToSanity(title, content);
+  console.log(`ITニュースフィードからAI関連の記事を検索しています... (キーワード: ${aiKeywords.join(', ')})`);
+  for (const article of articles) {
+    const title = article.title || '';
+    if (aiKeywords.some(keyword => title.includes(keyword))) {
+      targetArticle = article;
+      console.log(`AI関連の記事を見つけました: ${targetArticle.title}`);
+      break; // 最初に見つかった記事を対象とする
+    }
+  }
+
+  if (targetArticle) {
+    const { title, content } = await generateArticle(targetArticle.title, targetArticle.link);
+    await saveDraftToSanity(title, content);
+  } else {
+    console.log('本日のITニュースフィードにAI関連の記事は見つかりませんでした。');
+  }
 }
 
 /**
