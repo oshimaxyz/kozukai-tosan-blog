@@ -40,7 +40,7 @@ export default function ContactPage() {
               name="message"
               required
               rows={5}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-black"
             />
           </div>
           <div className="text-center">
