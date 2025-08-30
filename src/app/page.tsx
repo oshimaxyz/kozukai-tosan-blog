@@ -7,6 +7,7 @@ interface Post {
   title: string;
   slug: string;
   excerpt: string;
+  publishedAt: string; // Use publishedAt
 }
 
 // Async function to fetch posts from Sanity
@@ -16,13 +17,31 @@ async function getPosts() {
       _id,
       title,
       "slug": slug.current,
-      "excerpt": body[0].children[0].text // Assuming first block's first child text as excerpt
+      "excerpt": body[0].children[0].text, // Assuming first block's first child text as excerpt
+      publishedAt // Fetch publishedAt timestamp
     }`;
-    const posts: Post[] = await client.fetch(query);
+    const posts: Post[] = await client.fetch(query, {}, { next: { revalidate: 1 } }); // Revalidate data every 1 second
     return posts;
   } catch (error) {
     console.error("Error fetching posts from Sanity:", error);
     return [];
+  }
+}
+
+// --- Formatted Date Component ---
+function FormattedDate({ date, postId }: { date: string, postId: string }) {
+  try {
+    return (
+      <p className="text-gray-500 text-sm mb-6">
+        投稿日: {new Date(date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+      </p>
+    );
+  } catch (error) {
+    // Temporarily render the error message for debugging
+    if (error instanceof Error) {
+      return <p className="text-red-500">Date Error: {error.message}</p>;
+    }
+    return <p className="text-red-500">An unknown error occurred in FormattedDate.</p>;
   }
 }
 
@@ -73,6 +92,7 @@ export default async function Home() {
                     <h4 
                       className="text-xl font-semibold text-gray-900 mb-2"
                     > {post.title} </h4>
+                    {post.publishedAt && <FormattedDate date={post.publishedAt} postId={post._id} />} {/* Add date rendering */}
                     <div 
                       className="text-gray-600 text-sm"
                     > {post.excerpt} </div>

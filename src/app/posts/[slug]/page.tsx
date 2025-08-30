@@ -3,11 +3,29 @@ import { PortableText } from '@portabletext/react';
 import type { PortableTextBlock } from '@portabletext/types';
 import Link from 'next/link';
 
+// --- Formatted Date Component ---
+function FormattedDate({ date, postId }: { date: string, postId: string }) {
+  try {
+    return (
+      <p className="text-gray-500 text-sm mb-6">
+        投稿日: {new Date(date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+      </p>
+    );
+  } catch (error) {
+    // Temporarily render the error message for debugging
+    if (error instanceof Error) {
+      return <p className="text-red-500">Date Error: {error.message}</p>;
+    }
+    return <p className="text-red-500">An unknown error occurred in FormattedDate.</p>;
+  }
+}
+
 // Define the shape of a Post
 interface Post {
   _id: string;
   title: string;
   body: PortableTextBlock[];
+  publishedAt: string;
 }
 
 // Define the shape of the props for our Page component
@@ -29,7 +47,8 @@ async function getPost(slug: string): Promise<Post> {
   const query = `*[_type == "post" && slug.current == $slug][0] {
     _id,
     title,
-    body
+    body,
+    publishedAt
   }`;
   const post = await client.fetch(query, { slug });
   return post;
@@ -58,6 +77,7 @@ export default async function PostPage({ params }: { params: { slug: string } })
           <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">
             {post.title}
           </h1>
+          {post.publishedAt && <FormattedDate date={post.publishedAt} postId={post._id} />}
           <div className="prose prose-lg max-w-none text-gray-800">
             <PortableText
               value={post.body}
